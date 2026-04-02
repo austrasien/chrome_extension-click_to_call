@@ -1,64 +1,171 @@
 (function() {
   const telPrefixRegex = /tel:\s*([\s.\-()]*\+?[0-9][0-9\s.\-()]{4,25})/g;
-  const phoneOnlyRegex = /(?:\+|0)[0-9][0-9\s.\-()]{7,20}/;
+  const phoneOnlyRegex = /(?:\+|0|\()[0-9][0-9\s.\-()]{6,25}/;
   const phoneKeywords = ['phone', 'mobile', 'tel', 'call', 'téléphone', 'portable', 'whatsapp'];
+  const exclusionKeywords = ['id', 'ref', 's/n', 'sku', 'ean', 'vin', 'order', 'commande', 'invoice', 'facture', 'tracking', 'quantité', 'quantity', 'batch', 'lot'];
+  const DEFAULT_COUNTRY_CODE = '+33'; // Default to France, can be changed here
+
+  function isValidPhoneNumber(text, element) {
+    const cleanText = text.trim();
+    const digitsOnly = cleanText.replace(/[^\d]/g, '');
+    
+    // 1. Rejeter si c'est une suite de plus de 12 chiffres sans aucun séparateur (probablement un ID/EAN)
+    if (/^\d{13,}$/.test(cleanText)) return false;
+    
+    // 2. Rejeter si le texte est trop court (moins de 5 chiffres réels)
+    if (digitsOnly.length < 5) return false;
+
+    // 3. Vérifier le contexte environnant pour des mots-clés d'exclusion
+    const contextText = (element.parentElement?.textContent || '').toLowerCase();
+    if (exclusionKeywords.some(kw => contextText.includes(kw))) {
+      // Si on trouve un mot d'exclusion, on vérifie qu'il n'y a pas AUSSI un mot-clé de téléphone pour compenser
+      if (!phoneKeywords.some(kw => contextText.includes(kw))) {
+        return false;
+      }
+    }
+
+    return true;
+  }
 
   function getGoogleVoiceUrl(number) {
-    const sanitizedNumber = number.replace(/[^\d+]/g, '');
+    let sanitizedNumber = number.replace(/[^\d+]/g, '');
+    
+    // If the number starts with 0 and doesn't have a +, prepend the default country code
+    if (sanitizedNumber.startsWith('0') && !sanitizedNumber.startsWith('+')) {
+      sanitizedNumber = DEFAULT_COUNTRY_CODE + sanitizedNumber.substring(1);
+    }
+    
     const encodedNumber = sanitizedNumber.replace('+', '%2B');
     return `https://voice.google.com/u/0/calls?a=nc,${encodedNumber}`;
   }
 
-  // --- 1. Détournement du bouton "Call" (Header) ---
+  // --- 1. Détournement du bouton "Call" (Header & Panneau latéral) ---
   function handleHubSpotCallButton() {
-    const callButton = document.querySelector('[data-test-id="create-engagement-call-button"]');
-    if (callButton && !callButton.dataset.intercepted) {
-      callButton.dataset.intercepted = "true";
-      callButton.addEventListener('click', function(e) {
-        e.preventDefault(); e.stopPropagation();
-        try {
-          const url = new URL(window.location.href);
-          if (url.searchParams.get('interaction') !== 'logged-call') {
+    // On cible le bouton par son ID de test (standard HubSpot) 
+    // ou par son texte s'il est dans un groupe d'actions (Note, Email, Call...)
+    const selectors = [
+      '[data-test-id="create-engagement-call-button"]',
+      '[data-unit-test="create-engagement-call-button"]',
+      'button i18n-string[data-key="communications.communicator.tabs.CALL"]', // Sélecteur très spécifique HubSpot
+      '.uiList [role="button"]', // Boutons dans les listes d'actions
+      'button span' // On filtrera par texte après
+    ];
+
+    const callTextFr = "Appeler";
+    const callTextEn = "Call";
+    const callTextEs = "Llamar";
+
+    const allButtons = document.querySelectorAll(selectors.join(', '));
+    
+    allButtons.forEach(btn => {
+      const text = btn.textContent.trim();
+      const isCallButton = btn.matches('[data-test-id*="call"]') || 
+                           [callTextFr, callTextEn, callTextEs].includes(text) ||
+                           btn.closest('[data-test-id="create-engagement-call-button"]');
+
+      if (isCallButton && !btn.dataset.intercepted) {
+        btn.dataset.intercepted = "true";
+        btn.addEventListener('click', function(e) {
+          if (!window.location.hostname.includes('hubspot')) return;
+
+          e.preventDefault(); e.stopPropagation();
+          try {
+            let targetUrl = window.location.href;
+            
+            // On cherche l'ID du contact de manière très large
+            // 1. D'abord dans le panneau latéral (drawer/panel)
+            const panel = btn.closest('.ui-drawer, .floating-panel, [data-test-id*="paged-view"], [data-test-id*="panel"]');
+            let contactLink = null;
+            
+            if (panel) {
+              const allLinks = Array.from(panel.querySelectorAll('a[href*="/record/"], a[href*="/contact/"]'));
+              contactLink = allLinks.find(a => {
+                const href = a.href;
+                return !href.includes('/views/') && !href.includes('/all/') && /\/\d{8,}(\?|$)/.test(href);
+              });
+            }
+
+            // 2. Si pas trouvé, on cherche dans la ligne de tableau "active" ou sélectionnée (si on est sur All Contacts)
+            if (!contactLink) {
+              const activeRow = document.querySelector('tr[data-test-id*="row"], tr[class*="selected"], tr:hover');
+              if (activeRow) {
+                const rowLinks = Array.from(activeRow.querySelectorAll('a[href*="/record/"], a[href*="/contact/"]'));
+                contactLink = rowLinks.find(a => /\/\d{8,}(\?|$)/.test(a.href));
+              }
+            }
+
+            if (contactLink) {
+              targetUrl = contactLink.href;
+            } else {
+              // 3. Dernier recours : on cherche un attribut data-record-id ou data-id dans le panneau
+              const idElement = panel?.querySelector('[data-record-id], [data-id]');
+              if (idElement) {
+                const id = idElement.dataset.recordId || idElement.dataset.id;
+                if (id && id.length >= 8) {
+                  // On tente de reconstruire l'URL (format HubSpot standard)
+                  const baseUrl = window.location.href.split('/contacts/')[0];
+                  const portalId = window.location.href.match(/\/contacts\/(\d+)/)?.[1];
+                  if (portalId) {
+                    targetUrl = `${baseUrl}/contacts/${portalId}/record/0-1/${id}`;
+                  }
+                }
+              }
+            }
+
+            const url = new URL(targetUrl);
             url.searchParams.set('interaction', 'logged-call');
             window.location.href = url.toString();
-          }
-        } catch (err) { console.error(err); }
-      }, true);
-    }
+          } catch (err) { console.error(err); }
+        }, true);
+      }
+    });
   }
 
   // --- 2. Transformation des liens dans les tableaux (All Contacts) ---
   function handleHubSpotTableLinks() {
-    // HubSpot utilise souvent des boutons ou des spans cliquables pour les numéros dans les listes
-    // On cherche les éléments qui ressemblent à des numéros de téléphone dans les cellules de tableau
-    const potentialLinks = document.querySelectorAll('td [role="button"], td a, [data-field="phone"] span, [data-field="mobilephone"] span');
+    // On cible les cellules de tableau spécifiques à HubSpot pour le téléphone
+    const cells = document.querySelectorAll('td[data-table-external-id*="phone"], td[data-table-external-id*="mobile"], td[data-field*="phone"], td[data-field*="mobile"]');
     
-    potentialLinks.forEach(el => {
-      const text = el.textContent.trim();
-      // Si le texte ressemble à un numéro de téléphone et n'a pas encore été traité
-      if (phoneOnlyRegex.test(text) && text.length < 25 && !el.dataset.telProcessed) {
-        el.dataset.telProcessed = "true";
-        
-        const gVoiceUrl = getGoogleVoiceUrl(text);
-        
-        // Si c'est déjà un lien, on change son href
-        if (el.tagName === 'A') {
-          el.href = gVoiceUrl;
-          el.target = "_blank";
-          el.onclick = (e) => e.stopPropagation(); // Évite de déclencher les scripts HubSpot
-        } else {
-          // Sinon on entoure le texte d'un lien tel: ou on change son style pour montrer qu'il est cliquable
-          el.style.cursor = 'pointer';
-          el.style.textDecoration = 'underline';
-          el.style.color = '#007bff';
-          el.addEventListener('click', function(e) {
-            e.preventDefault(); e.stopPropagation();
-            window.open(gVoiceUrl, '_blank');
-          }, true);
+    cells.forEach(cell => {
+      // On cherche tous les éléments cliquables ou contenant du texte dans la cellule
+      const potentialTargets = cell.querySelectorAll('a, span, div, [role="button"]');
+      
+      potentialTargets.forEach(target => {
+        const text = target.textContent.trim();
+        // Si c'est un numéro de téléphone et qu'il n'a pas été traité
+        if (phoneOnlyRegex.test(text) && text.length < 25 && !target.dataset.telProcessed) {
+          
+          // On marque aussi les parents pour éviter les doublons visuels
+          target.dataset.telProcessed = "true";
+          const gVoiceUrl = getGoogleVoiceUrl(text);
+          
+          const applyCallStyle = (element) => {
+            element.style.setProperty('cursor', 'pointer', 'important');
+            element.style.setProperty('text-decoration', 'underline', 'important');
+            element.style.setProperty('color', '#0b8043', 'important');
+          };
+
+          if (target.tagName === 'A') {
+            target.href = gVoiceUrl;
+            target.target = "_blank";
+            applyCallStyle(target);
+            target.addEventListener('click', (e) => {
+              e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
+              window.open(gVoiceUrl, '_blank');
+            }, true);
+          } else if (target.children.length === 0 || (target.children.length === 1 && target.firstElementChild.tagName === 'SPAN')) {
+            // On ne transforme que les éléments "terminaux" (feuilles) pour ne pas casser le layout
+            applyCallStyle(target);
+            target.addEventListener('click', function(e) {
+              e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
+              window.open(gVoiceUrl, '_blank');
+            }, true);
+          }
         }
-      }
+      });
     });
   }
+
 
   // --- 3. Fonctions utilitaires et détection ---
   function isForbidden(node) {
@@ -136,16 +243,18 @@
       btn.href = getGoogleVoiceUrl(targetNumber);
       btn.target = "_blank";
       
-      btn.textContent = '📞 Appeler';
+      btn.textContent = chrome.i18n.getMessage("call_button_text") || '📞 Call';
       btn.className = 'tel-btn-added';
       Object.assign(btn.style, {
-        display: 'inline-block', marginLeft: '8px', padding: '2px 10px',
-        backgroundColor: '#007bff', color: 'white', borderRadius: '4px',
+        display: 'inline-block', marginLeft: '2px', marginTop: '5px',
+        padding: '2px 10px',
+        backgroundColor: '#0b8043', color: 'white', borderRadius: '4px',
         textDecoration: 'none', fontSize: '12px', fontWeight: '600',
         verticalAlign: 'middle', cursor: 'pointer', transition: 'background-color 0.2s'
       });
-      btn.onmouseenter = () => btn.style.backgroundColor = '#0056b3';
-      btn.onmouseleave = () => btn.style.backgroundColor = '#007bff';
+      btn.onmouseenter = () => btn.style.backgroundColor = '#096d39';
+      btn.onmouseleave = () => btn.style.backgroundColor = '#0b8043';
+      
       if (!field.parentNode) return;
       field.parentNode.insertBefore(btn, field.nextSibling);
     }
@@ -168,21 +277,19 @@
     handleHubSpotTableLinks();
   }
 
+  // Initial run
   walk(document.body);
 
+  // Debounced observer to handle dynamic content efficiently
+  let debounceTimer;
   const observer = new MutationObserver((mutations) => {
-    mutations.forEach((mutation) => {
-      mutation.addedNodes.forEach((node) => {
-        if (node.nodeType === Node.ELEMENT_NODE) walk(node);
-        else if (node.nodeType === Node.TEXT_NODE && !isForbidden(node)) linkify(node);
-      });
-      if (mutation.type === 'attributes' && (mutation.target.tagName === 'TEXTAREA' || mutation.target.tagName === 'INPUT')) {
-          handleInputFields(mutation.target);
-      }
-      handleHubSpotCallButton();
-      handleHubSpotTableLinks();
-    });
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(() => {
+      // Process the whole body or just the added parts for better performance
+      // Here we scan the body to ensure consistency, but limited by debounce
+      walk(document.body);
+    }, 150); // Wait 150ms of "quiet" before scanning
   });
 
-  observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['value'] });
+  observer.observe(document.body, { childList: true, subtree: true, attributes: true });
 })();

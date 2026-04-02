@@ -2,6 +2,8 @@
 
 A lightweight Google Chrome extension (Manifest V3) designed to streamline your calling workflow by automatically transforming phone numbers on any webpage into clickable **Google Voice** links.
 
+> **Note:** This extension is specifically designed for **Google Voice Workspace (Pro)** accounts, typically used in professional environments.
+
 ## 🚀 Overview
 
 This extension scans the webpages you visit for phone numbers and converts them into direct links to Google Voice (`https://voice.google.com/`). It is specifically optimized for CRM platforms like **HubSpot**, making it a powerful tool for sales and support teams who use Google Voice as their primary calling solution.
@@ -33,8 +35,9 @@ Since this extension is in development mode, follow these steps to install it in
 The extension runs a background script (`content.js`) that:
 1.  Identifies phone numbers using optimized regular expressions.
 2.  Filters out "forbidden" tags (like existing links or script blocks) to prevent breaking website layouts.
-3.  Sanitizes the number (removes spaces, dots, and dashes) and encodes the `+` prefix.
-4.  Wraps the text in a styled link or adds a button near input fields.
+3.  Sanitizes the number (removes spaces, dots, and dashes).
+4.  **Automatic Prefixing:** If a number starts with `0` and has no country code, it automatically prepends **`+33`** (France) to ensure Google Voice recognizes it correctly.
+5.  Wraps the text in a styled link or adds a button near input fields.
 
 ## ⚖️ License
 

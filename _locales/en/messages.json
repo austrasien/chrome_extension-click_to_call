@@ -1,0 +1,11 @@
+{
+  "extension_name": {
+    "message": "Click-to-Call with Google Voice"
+  },
+  "extension_description": {
+    "message": "Click to call from HubSpot and any webpage using Google Voice. Optimizes your professional CRM calling workflow."
+  },
+  "call_button_text": {
+    "message": "📞 Call"
+  }
+}

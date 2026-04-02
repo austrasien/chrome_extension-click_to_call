@@ -1,0 +1,11 @@
+{
+  "extension_name": {
+    "message": "Click-to-Call avec Google Voice"
+  },
+  "extension_description": {
+    "message": "Appelez en un clic depuis HubSpot et n'importe quel site via Google Voice. Optimisé pour les comptes Workspace Pro."
+  },
+  "call_button_text": {
+    "message": "📞 Appeler"
+  }
+}

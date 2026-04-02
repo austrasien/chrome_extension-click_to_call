@@ -1,0 +1,11 @@
+{
+  "extension_name": {
+    "message": "Click-to-Call Linker para Google Voice"
+  },
+  "extension_description": {
+    "message": "Convierte los números de teléfono en enlaces de Google Voice en los que se puede hacer clic."
+  },
+  "call_button_text": {
+    "message": "📞 Llamar"
+  }
+}
