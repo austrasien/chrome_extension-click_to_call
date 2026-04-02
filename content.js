@@ -259,9 +259,15 @@
     const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
       acceptNode: function(node) {
         if (isForbidden(node)) return NodeFilter.FILTER_REJECT;
-        // On évite de linkifier le texte brut dans les cellules de tableau HubSpot 
-        // car handleHubSpotTableLinks s'en occupe de manière plus propre
-        if (isHubSpot && node.parentElement?.closest('td')) return NodeFilter.FILTER_REJECT;
+        // On évite de linkifier le texte brut dans n'importe quel élément à l'intérieur d'une cellule de tableau HubSpot
+        // car handleHubSpotTableLinks gère déjà cela de manière exhaustive
+        if (isHubSpot) {
+          let parent = node.parentElement;
+          while (parent && parent !== root) {
+            if (parent.tagName === 'TD') return NodeFilter.FILTER_REJECT;
+            parent = parent.parentElement;
+          }
+        }
         return NodeFilter.FILTER_ACCEPT;
       }
     });
