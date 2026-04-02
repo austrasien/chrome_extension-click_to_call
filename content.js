@@ -181,14 +181,20 @@
       a.target = "_blank";
       a.style.color = '#0b8043';
       a.style.textDecoration = 'underline';
-      const btn = document.createElement('a');
-      btn.className = 'tel-btn-added';
-      btn.textContent = ' 📞';
-      btn.href = gVoiceUrl;
-      btn.target = "_blank";
-      btn.style.textDecoration = 'none';
+      
       fragments.appendChild(a);
-      fragments.appendChild(btn);
+
+      // On n'ajoute le bouton "Call" à côté que si on est sur HubSpot
+      if (window.location.hostname.includes('hubspot')) {
+        const btn = document.createElement('a');
+        btn.className = 'tel-btn-added';
+        btn.textContent = ' 📞';
+        btn.href = gVoiceUrl;
+        btn.target = "_blank";
+        btn.style.textDecoration = 'none';
+        fragments.appendChild(btn);
+      }
+
       lastIndex = combinedRegex.lastIndex;
     }
     if (hasMatch) {
@@ -198,8 +204,11 @@
   }
 
   function handleInputFields(field) {
+    // On ne traite les champs de saisie que sur HubSpot pour éviter de polluer les autres sites
+    if (!window.location.hostname.includes('hubspot')) return;
+
     if (field.getAttribute('data-selenium-test') === 'property-input-call_dev') return;
-    if (window.location.hostname.includes('hubspot') && field.closest('td')) return;
+    if (field.closest('td')) return;
     const val = (field.value || '').trim();
     if (!val) return;
     phoneOnlyRegex.lastIndex = 0;
