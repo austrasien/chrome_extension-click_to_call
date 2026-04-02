@@ -13,6 +13,14 @@ If this extension saves you time and makes your HubSpot workflow smoother, feel 
 
 ---
 
+### 💬 Feedback & Community
+Got a question, found a bug, or have a suggestion? Or maybe you just want to say hello? 
+Join the conversation on [**GitHub Discussions**](https://github.com/austrasien/chrome_extension-click_to_call/discussions)! 
+
+Your feedback is invaluable in making this extension better for everyone.
+
+---
+
 ## 🚀 Overview
 
 This extension scans the webpages you visit for phone numbers and converts them into direct links to Google Voice. It eliminates the need for manual dialing or copy-pasting, opening a direct communication channel in a new tab instantly.
