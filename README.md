@@ -50,15 +50,30 @@ Full support for multiple languages. The interface automatically adapts to your 
 - **High Responsiveness:** Uses an optimized Mutation Observer with a **50ms debounce** to detect new content instantly without impacting CPU usage.
 - **Context Awareness:** Engineered to handle extension reloads without crashing or polluting the browser console.
 
-## 🛠 Installation
+## 🛠 Installation Guide
 
-Since this extension is in development mode:
+Follow these simple steps to install the extension in your Google Chrome browser:
 
-1.  **Download/Clone** this repository to your local machine.
-2.  Open Google Chrome and navigate to `chrome://extensions/`.
-3.  Enable **"Developer mode"** (toggle in the top right).
-4.  Click **"Load unpacked"** and select the extension folder.
-5.  **Refresh your HubSpot tabs** to activate the script.
+1.  **Download the Extension:**
+    - Scroll to the top of this page.
+    - Click the green **"<> Code"** button.
+    - Select **"Download ZIP"** from the menu.
+2.  **Extract the Files:**
+    - Find the downloaded `.zip` file on your computer (usually in your "Downloads" folder).
+    - Right-click it and select **"Extract All..."** (or "Unzip") to a folder of your choice.
+3.  **Open Chrome Extensions Page:**
+    - Open Google Chrome.
+    - Type `chrome://extensions/` in the address bar and press **Enter**.
+4.  **Enable Developer Mode:**
+    - Look for the **"Developer mode"** switch in the top right corner of the page.
+    - **Turn it ON**.
+5.  **Load the Extension:**
+    - Click the **"Load unpacked"** button that appeared in the top left corner.
+    - A file browser will open. Navigate to the folder where you unzipped the files in Step 2.
+    - **Important:** Select the folder that contains the `manifest.json` file.
+6.  **Final Step:**
+    - The extension is now active! 
+    - **Go back to your HubSpot tabs** (or any other webpage) and **refresh the page (F5)** to enable the calling buttons.
 
 ## 📖 How it Works
 
