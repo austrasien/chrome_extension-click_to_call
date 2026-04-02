@@ -1,0 +1,62 @@
+body {
+  width: 250px;
+  margin: 0;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  background-color: #f9f9f9;
+  color: #333;
+}
+
+.container {
+  padding: 20px;
+  text-align: center;
+}
+
+.logo {
+  width: 48px;
+  height: 48px;
+  margin-bottom: 10px;
+}
+
+h2 {
+  font-size: 18px;
+  margin: 0 0 10px 0;
+  color: #007bff;
+}
+
+p {
+  font-size: 13px;
+  line-height: 1.4;
+  margin-bottom: 20px;
+}
+
+.donate-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #0070ba; /* Couleur PayPal */
+  color: white;
+  text-decoration: none;
+  padding: 10px 15px;
+  border-radius: 25px;
+  font-weight: bold;
+  font-size: 14px;
+  transition: background-color 0.2s;
+}
+
+.donate-button:hover {
+  background-color: #005ea6;
+}
+
+.paypal-icon {
+  font-family: 'Georgia', serif;
+  font-style: italic;
+  font-weight: bold;
+  margin-right: 8px;
+  font-size: 18px;
+}
+
+.footer {
+  margin-top: 20px;
+  font-size: 11px;
+  color: #999;
+}

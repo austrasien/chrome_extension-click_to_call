@@ -7,5 +7,14 @@
   },
   "call_button_text": {
     "message": "📞 Llamar"
+  },
+  "popup_message": {
+    "message": "Si esta extensión te ayuda, ¡considera apoyar su desarrollo! ☕️"
+  },
+  "popup_donate_button": {
+    "message": "Apoyar en PayPal"
+  },
+  "popup_version": {
+    "message": "Versión"
   }
 }
