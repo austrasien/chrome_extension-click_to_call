@@ -56,40 +56,46 @@
         const performRedirection = function(e) {
           if (!window.location.hostname.includes('hubspot')) return;
           
-          // On bloque tout immédiatement
           e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
           
           try {
             let targetUrl = window.location.href;
-            const panel = btn.closest('.ui-drawer, .floating-panel, [data-test-id*="paged-view"], [role="dialog"], [class*="panel"]');
             
-            // On cherche l'ID du contact
-            let contactId = null;
-            if (panel) {
-              contactId = panel.dataset.recordId || panel.getAttribute('data-id');
-              if (!contactId || contactId === 'undefined') {
-                const link = panel.querySelector('a[href*="/record/0-1/"], a[href*="/contact/"]');
-                const match = link?.href.match(/\/record\/0-1\/(\d+)/) || link?.href.match(/\/contact\/(\d+)/);
-                contactId = match?.[1];
+            // MÉTHODE DE PROXIMITÉ : On cherche le lien record le plus proche dans le DOM
+            // On remonte les parents jusqu'à trouver un conteneur de panneau ou de ligne
+            let current = btn;
+            let foundLink = null;
+            let depth = 0;
+            
+            while (current && depth < 15) {
+              // On cherche un lien record dans les descendants de ce parent
+              const links = Array.from(current.querySelectorAll('a[href*="/record/0-1/"], a[href*="/contact/"]'));
+              const specificLink = links.find(a => {
+                const href = a.href;
+                return !href.includes('/views/') && !href.includes('/all/') && /\/\d{8,}(\?|$)/.test(href);
+              });
+              
+              if (specificLink) {
+                foundLink = specificLink.href;
+                break;
               }
+              current = current.parentElement;
+              depth++;
             }
 
-            const portalId = window.location.href.match(/\/contacts\/(\d+)/)?.[1];
-            if (contactId && contactId.length >= 8 && portalId) {
-              const baseUrl = window.location.href.split('/contacts/')[0];
-              targetUrl = `${baseUrl}/contacts/${portalId}/record/0-1/${contactId}`;
+            if (foundLink) {
+              targetUrl = foundLink;
             }
 
             const url = new URL(targetUrl);
             url.searchParams.set('interaction', 'logged-call');
             
-            // On force la redirection
+            // On force la redirection vers la fiche contact
             window.location.assign(url.toString());
           } catch (err) { console.error(err); }
           return false;
         };
 
-        // On intercepte sur mousedown pour être les plus rapides
         btn.addEventListener('mousedown', performRedirection, true);
         btn.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); }, true);
       }
@@ -153,7 +159,7 @@
     });
   }
 
-  // --- 3. Détection de texte brut (linkify) ---
+  // --- 3. Détection de texte brut ---
   function linkify(node) {
     if (!node.parentElement || node.parentElement.closest('.tel-btn-added, a')) return;
     const text = node.textContent;
