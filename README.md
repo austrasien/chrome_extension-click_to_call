@@ -32,6 +32,8 @@ This extension scans the webpages you visit for phone numbers and converts them 
 ## ✨ Key Features
 
 ### 🛠 Deep HubSpot Integration
+![HubSpot Click-to-Call Preview](readme_pic.png)
+
 - **Intelligent Side-Panel Redirection:** Automatically identifies the active contact in HubSpot's preview panels or contact cards and redirects you to the correct record with `interaction=logged-call` enabled.
 - **Uniform Table Layout:** Adds a consistent, green styled "📞 Call" button to the right of phone numbers in HubSpot contact tables using a robust Flexbox layout.
 - **Engagement Triggering:** Intercepts native HubSpot "Call" buttons to ensure calls are logged against the correct CRM record.
