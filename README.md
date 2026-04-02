@@ -1,57 +1,67 @@
-# Click-to-Call Linker for Google Voice
+# Click-to-Call with Google Voice
 
-A lightweight Google Chrome extension (Manifest V3) designed to streamline your calling workflow by automatically transforming phone numbers on any webpage into clickable **Google Voice** links.
+A professional-grade Google Chrome extension (Manifest V3) designed to streamline your calling workflow by automatically transforming phone numbers on any webpage into clickable **Google Voice** links. 
 
-> **Note:** This extension is specifically designed for **Google Voice Workspace (Pro)** accounts, typically used in professional environments.
+> **⚡ Optimized for HubSpot:** While it works globally, this extension provides deep, specialized integration for HubSpot CRM to boost sales productivity.
+
+---
+
+### ☕ Support the Project
+If this extension saves you time and makes your HubSpot workflow smoother, feel free to support its development!
+[**Donate via PayPal**](https://paypal.me/austraz)
+
+---
 
 ## 🚀 Overview
 
-This extension scans the webpages you visit for phone numbers and converts them into direct links to Google Voice (`https://voice.google.com/`). 
+This extension scans the webpages you visit for phone numbers and converts them into direct links to Google Voice. It eliminates the need for manual dialing or copy-pasting, opening a direct communication channel in a new tab instantly.
 
-**Built for HubSpot:** While it works on any website, this extension is **highly optimized for HubSpot CRM**, providing a seamless experience for sales teams by deeply integrating with contact lists, preview panels, and engagement logging.
+> **Note:** This extension is specifically designed for **Google Voice Workspace (Pro)** accounts.
 
 ## ✨ Key Features
 
-- **Automated Linkification:** Detects plain text phone numbers and turns them into clickable links.
-- **Google Voice Integration:** Instead of standard `tel:` links, it generates URLs formatted for Google Voice (e.g., `https://voice.google.com/u/0/calls?a=nc,%2B33640...`).
-- **Advanced HubSpot Optimization:** 
-    - **Intelligent Redirection:** Intercepts "Call" buttons in HubSpot preview panels to correctly redirect to individual contact records with call-logging parameters enabled.
-    - **Uniform Table Layout:** Adds a consistent, styled "📞 Call" button next to phone numbers in HubSpot contact tables, ensuring a professional and predictable UI.
-    - **Automatic Engagement Tracking:** Helps trigger HubSpot's internal call-logging workflow automatically.
-- **Smart Input Detection:** Adds a "📞 Call" button next to input fields and textareas that appear to contain phone numbers.
-- **New Tab Opening:** All generated links open in a new tab (`target="_blank"`), ensuring you don't lose your place on your current page.
-- **Dynamic Content Support:** Uses a Mutation Observer to detect and process numbers even on pages that load content dynamically (AJAX/SPA).
+### 🛠 Deep HubSpot Integration
+- **Intelligent Side-Panel Redirection:** Automatically identifies the active contact in HubSpot's preview panels or contact cards and redirects you to the correct record with `interaction=logged-call` enabled.
+- **Uniform Table Layout:** Adds a consistent, green styled "📞 Call" button to the right of phone numbers in HubSpot contact tables using a robust Flexbox layout.
+- **Engagement Triggering:** Intercepts native HubSpot "Call" buttons to ensure calls are logged against the correct CRM record.
+
+### 🔍 Universal Detection & Smart Filtering
+- **Linkification:** Detects both standard `tel:` links and plain text phone numbers.
+- **Heuristic Validation:** Uses advanced filtering to ignore false positives like IDs, invoice numbers, or SKU codes (filtering by length, context keywords, and character patterns).
+- **Default Country Prefix:** Automatically prepends **`+33`** (France) to local numbers starting with `0` if no country code is present.
+
+### 🌍 Internationalization (i18n)
+Full support for multiple languages. The interface automatically adapts to your browser settings:
+- **English** (Call)
+- **French** (Appeler)
+- **Spanish** (Llamar)
+
+### 🏎 Performance & Stability
+- **Non-Intrusive:** Opens all links in a new tab (`target="_blank"`) to preserve your current workflow.
+- **High Responsiveness:** Uses an optimized Mutation Observer with a **50ms debounce** to detect new content instantly without impacting CPU usage.
+- **Context Awareness:** Engineered to handle extension reloads without crashing or polluting the browser console.
 
 ## 🛠 Installation
 
-Since this extension is in development mode, follow these steps to install it in Google Chrome:
+Since this extension is in development mode:
 
 1.  **Download/Clone** this repository to your local machine.
 2.  Open Google Chrome and navigate to `chrome://extensions/`.
-3.  Enable **"Developer mode"** using the toggle switch in the top right corner.
-4.  Click the **"Load unpacked"** button.
-5.  Select the folder containing the extension files (where `manifest.json` is located).
-6.  The extension is now active! You can pin it to your toolbar for easy access.
+3.  Enable **"Developer mode"** (toggle in the top right).
+4.  Click **"Load unpacked"** and select the extension folder.
+5.  **Refresh your HubSpot tabs** to activate the script.
 
 ## 📖 How it Works
 
-The extension runs a background script (`content.js`) that:
-1.  Identifies phone numbers using optimized regular expressions.
-2.  Filters out "forbidden" tags (like existing links or script blocks) to prevent breaking website layouts.
-3.  Sanitizes the number (removes spaces, dots, and dashes).
-4.  **Automatic Prefixing:** If a number starts with `0` and has no country code, it automatically prepends **`+33`** (France) to ensure Google Voice recognizes it correctly.
-5.  Wraps the text in a styled link or adds a button near input fields.
+The background script (`content.js`) performs the following steps:
+1.  **Scans the DOM** using a specialized TreeWalker to find text nodes and phone fields.
+2.  **Validates** potential numbers against exclusion lists (ID, Ref, SKU, Batch, etc.).
+3.  **Sanitizes** strings and encodes the `+` prefix for Google Voice compatibility.
+4.  **Injects** styled buttons or wraps text in high-priority green links (`#0b8043`).
 
 ## ⚖️ License
 
-This project is licensed under the **MIT License**.
-
-### What does this mean?
-The MIT License is a short and permissive software license. It basically allows you to do whatever you want with the code as long as you provide attribution back to the original author and don't hold them liable.
-
-- **Permission:** You can use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the software.
-- **Condition:** You must include the original copyright notice and this permission notice in any substantial portion of the software.
-- **No Warranty:** The software is provided "as is", without warranty of any kind. The authors are not liable for any claims or damages.
+Licensed under the **MIT License**. Permissive for both personal and commercial use, provided attribution is maintained.
 
 ---
-*Developed to bridge the gap between web-based CRMs and Google Voice.*
+*Developed to bridge the gap between HubSpot CRM and Google Voice Pro.*
