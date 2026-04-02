@@ -6,15 +6,18 @@ A lightweight Google Chrome extension (Manifest V3) designed to streamline your 
 
 ## 🚀 Overview
 
-This extension scans the webpages you visit for phone numbers and converts them into direct links to Google Voice (`https://voice.google.com/`). It is specifically optimized for CRM platforms like **HubSpot**, making it a powerful tool for sales and support teams who use Google Voice as their primary calling solution.
+This extension scans the webpages you visit for phone numbers and converts them into direct links to Google Voice (`https://voice.google.com/`). 
+
+**Built for HubSpot:** While it works on any website, this extension is **highly optimized for HubSpot CRM**, providing a seamless experience for sales teams by deeply integrating with contact lists, preview panels, and engagement logging.
 
 ## ✨ Key Features
 
 - **Automated Linkification:** Detects plain text phone numbers and turns them into clickable links.
 - **Google Voice Integration:** Instead of standard `tel:` links, it generates URLs formatted for Google Voice (e.g., `https://voice.google.com/u/0/calls?a=nc,%2B33640...`).
-- **HubSpot Optimization:** 
-    - Intercepts "Call" buttons to handle HubSpot's internal tracking parameters.
-    - Specifically targets phone fields in contact lists and table views.
+- **Advanced HubSpot Optimization:** 
+    - **Intelligent Redirection:** Intercepts "Call" buttons in HubSpot preview panels to correctly redirect to individual contact records with call-logging parameters enabled.
+    - **Uniform Table Layout:** Adds a consistent, styled "📞 Call" button next to phone numbers in HubSpot contact tables, ensuring a professional and predictable UI.
+    - **Automatic Engagement Tracking:** Helps trigger HubSpot's internal call-logging workflow automatically.
 - **Smart Input Detection:** Adds a "📞 Call" button next to input fields and textareas that appear to contain phone numbers.
 - **New Tab Opening:** All generated links open in a new tab (`target="_blank"`), ensuring you don't lose your place on your current page.
 - **Dynamic Content Support:** Uses a Mutation Observer to detect and process numbers even on pages that load content dynamically (AJAX/SPA).
