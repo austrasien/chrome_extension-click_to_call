@@ -95,36 +95,72 @@
 
   // --- 2. Transformation des liens dans les tableaux (All Contacts) ---
   function handleHubSpotTableLinks() {
+    // On cible les cellules de tableau spécifiques à HubSpot pour le téléphone
     const cells = document.querySelectorAll('td[data-table-external-id*="phone"], td[data-table-external-id*="mobile"], td[data-field*="phone"], td[data-field*="mobile"]');
+    
     cells.forEach(cell => {
-      const potentialTargets = cell.querySelectorAll('a, span, div, [role="button"]');
-      potentialTargets.forEach(target => {
-        const text = target.textContent.trim();
-        if (phoneOnlyRegex.test(text) && text.length < 25 && !target.dataset.telProcessed) {
-          target.dataset.telProcessed = "true";
-          const gVoiceUrl = getGoogleVoiceUrl(text);
-          const applyCallStyle = (element) => {
-            element.style.setProperty('cursor', 'pointer', 'important');
-            element.style.setProperty('text-decoration', 'underline', 'important');
-            element.style.setProperty('color', '#0b8043', 'important');
-          };
-          if (target.tagName === 'A') {
-            target.href = gVoiceUrl;
-            target.target = "_blank";
-            applyCallStyle(target);
-            target.addEventListener('click', (e) => {
-              e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
-              window.open(gVoiceUrl, '_blank');
-            }, true);
-          } else if (target.children.length === 0 || (target.children.length === 1 && target.firstElementChild.tagName === 'SPAN')) {
-            applyCallStyle(target);
-            target.addEventListener('click', function(e) {
-              e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
-              window.open(gVoiceUrl, '_blank');
-            }, true);
-          }
+      const text = cell.textContent.trim();
+      
+      // Si c'est un numéro de téléphone et qu'il n'a pas été traité
+      if (phoneOnlyRegex.test(text) && text.length < 25 && !cell.dataset.telProcessed) {
+        // Nettoyage : on supprime d'éventuels boutons déjà ajoutés manuellement par linkify
+        cell.querySelectorAll('.tel-btn-added').forEach(b => b.remove());
+
+        cell.dataset.telProcessed = "true";
+        const gVoiceUrl = getGoogleVoiceUrl(text);
+        
+        // On cherche l'élément qui contient le texte
+        const textElement = cell.querySelector('a, span[data-test-id="truncated-object-label"], span') || cell;
+        
+        // Création du bouton uniforme "📞 Appeler"
+        const btn = document.createElement('a');
+        btn.href = gVoiceUrl;
+        btn.target = "_blank";
+        btn.textContent = chrome.i18n.getMessage("call_button_text") || '📞 Call';
+        btn.className = 'tel-btn-added';
+        
+        Object.assign(btn.style, {
+          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+          marginLeft: '8px', padding: '1px 8px',
+          backgroundColor: '#0b8043', color: 'white', borderRadius: '4px',
+          textDecoration: 'none', fontSize: '11px', fontWeight: '600',
+          cursor: 'pointer', transition: 'background-color 0.2s',
+          whiteSpace: 'nowrap', flexShrink: '0'
+        });
+        
+        btn.onmouseenter = () => btn.style.backgroundColor = '#096d39';
+        btn.onmouseleave = () => btn.style.backgroundColor = '#0b8043';
+        
+        btn.addEventListener('click', (e) => {
+          e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
+          window.open(gVoiceUrl, '_blank');
+        }, true);
+
+        // On force la cellule en flex pour garantir l'ordre : Numéro puis Bouton
+        cell.style.display = 'flex';
+        cell.style.alignItems = 'center';
+        cell.style.flexDirection = 'row'; // Force l'ordre de gauche à droite
+        
+        // On assure que le numéro original est avant le bouton
+        if (textElement.parentNode === cell) {
+          cell.appendChild(btn); // Le bouton est ajouté à la fin (donc à droite)
+        } else {
+          // Si le texte est plus profond, on l'ajoute juste après son conteneur immédiat dans la cellule
+          textElement.after(btn);
         }
-      });
+
+        // Optionnel: on change aussi la couleur du numéro original en vert pour plus de clarté
+        textElement.style.color = '#0b8043';
+        textElement.style.textDecoration = 'none';
+        
+        // On désactive le lien original de HubSpot s'il existe pour éviter les conflits
+        if (textElement.tagName === 'A') {
+          textElement.addEventListener('click', (e) => {
+            e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
+            window.open(gVoiceUrl, '_blank');
+          }, true);
+        }
+      }
     });
   }
 
@@ -216,15 +252,24 @@
 
   function walk(root) {
     if (!root) return;
+    
+    // Pour HubSpot, on évite le linkify sauvage sur les tables pour ne pas avoir de doublons
+    const isHubSpot = window.location.hostname.includes('hubspot');
+    
     const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
       acceptNode: function(node) {
         if (isForbidden(node)) return NodeFilter.FILTER_REJECT;
+        // On évite de linkifier le texte brut dans les cellules de tableau HubSpot 
+        // car handleHubSpotTableLinks s'en occupe de manière plus propre
+        if (isHubSpot && node.parentElement?.closest('td')) return NodeFilter.FILTER_REJECT;
         return NodeFilter.FILTER_ACCEPT;
       }
     });
+    
     const nodes = [];
     while (walker.nextNode()) nodes.push(walker.currentNode);
     for (let i = nodes.length - 1; i >= 0; i--) linkify(nodes[i]);
+    
     const inputs = root.querySelectorAll ? root.querySelectorAll('textarea, input') : [];
     inputs.forEach(handleInputFields);
     handleHubSpotCallButton();
