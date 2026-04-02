@@ -95,29 +95,20 @@
 
   // --- 2. Transformation des liens dans les tableaux (All Contacts) ---
   function handleHubSpotTableLinks() {
-    // On cible les cellules de tableau spécifiques à HubSpot pour le téléphone
     const cells = document.querySelectorAll('td[data-table-external-id*="phone"], td[data-table-external-id*="mobile"], td[data-field*="phone"], td[data-field*="mobile"]');
     
     cells.forEach(cell => {
       const text = cell.textContent.trim();
-      
-      // Si c'est un numéro de téléphone et qu'il n'a pas été traité
-      if (phoneOnlyRegex.test(text) && text.length < 25 && !cell.dataset.telProcessed) {
-        // Nettoyage : on supprime d'éventuels boutons déjà ajoutés manuellement par linkify
-        cell.querySelectorAll('.tel-btn-added').forEach(b => b.remove());
+      if (!phoneOnlyRegex.test(text) || text.length >= 25) return;
 
-        cell.dataset.telProcessed = "true";
-        const gVoiceUrl = getGoogleVoiceUrl(text);
-        
-        // On cherche l'élément qui contient le texte
-        const textElement = cell.querySelector('a, span[data-test-id="truncated-object-label"], span') || cell;
-        
-        // Création du bouton uniforme "📞 Appeler"
-        const btn = document.createElement('a');
-        btn.href = gVoiceUrl;
-        btn.target = "_blank";
-        btn.textContent = chrome.i18n.getMessage("call_button_text") || '📞 Call';
+      // Au lieu d'un flag sur la cellule, on vérifie si notre bouton est là
+      let btn = cell.querySelector('.tel-btn-added');
+      const gVoiceUrl = getGoogleVoiceUrl(text);
+
+      if (!btn) {
+        btn = document.createElement('a');
         btn.className = 'tel-btn-added';
+        btn.target = "_blank";
         
         Object.assign(btn.style, {
           display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
@@ -136,25 +127,27 @@
           window.open(gVoiceUrl, '_blank');
         }, true);
 
-        // On force la cellule en flex pour garantir l'ordre : Numéro puis Bouton
-        cell.style.display = 'flex';
-        cell.style.alignItems = 'center';
-        cell.style.flexDirection = 'row'; // Force l'ordre de gauche à droite
-        
-        // On assure que le numéro original est avant le bouton
-        if (textElement.parentNode === cell) {
-          cell.appendChild(btn); // Le bouton est ajouté à la fin (donc à droite)
-        } else {
-          // Si le texte est plus profond, on l'ajoute juste après son conteneur immédiat dans la cellule
-          textElement.after(btn);
-        }
+        cell.appendChild(btn);
+      }
 
-        // Optionnel: on change aussi la couleur du numéro original en vert pour plus de clarté
-        textElement.style.color = '#0b8043';
-        textElement.style.textDecoration = 'none';
+      // On met à jour le texte et le lien (au cas où le numéro a changé)
+      btn.href = gVoiceUrl;
+      btn.textContent = chrome.i18n.getMessage("call_button_text") || '📞 Call';
+
+      // On force le layout FLEX pour garder le bouton à droite
+      cell.style.setProperty('display', 'flex', 'important');
+      cell.style.setProperty('align-items', 'center', 'important');
+      cell.style.setProperty('flex-direction', 'row', 'important');
+      
+      // On s'assure que le numéro (textElement) est en vert
+      const textElement = cell.querySelector('a, span[data-test-id="truncated-object-label"], span') || cell;
+      if (textElement) {
+        textElement.style.setProperty('color', '#0b8043', 'important');
+        textElement.style.setProperty('text-decoration', 'none', 'important');
         
-        // On désactive le lien original de HubSpot s'il existe pour éviter les conflits
-        if (textElement.tagName === 'A') {
+        // On détourne aussi le clic sur le texte lui-même
+        if (!textElement.dataset.intercepted) {
+          textElement.dataset.intercepted = "true";
           textElement.addEventListener('click', (e) => {
             e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
             window.open(gVoiceUrl, '_blank');
@@ -221,6 +214,11 @@
 
   function handleInputFields(field) {
     if (field.getAttribute('data-selenium-test') === 'property-input-call_dev') return;
+    
+    // On ignore les champs de saisie à l'intérieur des tableaux HubSpot 
+    // car ils sont déjà gérés par handleHubSpotTableLinks
+    if (window.location.hostname.includes('hubspot') && field.closest('td')) return;
+
     const val = (field.value || '').trim();
     if (!val) return;
     let targetNumber = null;
