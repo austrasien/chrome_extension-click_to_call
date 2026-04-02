@@ -1,23 +1,15 @@
 (function() {
+  function isContextValid() {
+    return typeof chrome !== 'undefined' && chrome.runtime && !!chrome.runtime.id;
+  }
+  if (!isContextValid()) return;
+
+  const CALL_BUTTON_TEXT = chrome.i18n.getMessage("call_button_text") || '📞 Call';
   const telPrefixRegex = /tel:\s*([\s.\-()]*\+?[0-9][0-9\s.\-()]{4,25})/g;
-  const phoneOnlyRegex = /(?:\+|0|\()[0-9][0-9\s.\-()]{6,25}/;
+  const phoneOnlyRegex = /(?:\+|0|\()[0-9][0-9\s.\-()]{6,25}/g;
   const phoneKeywords = ['phone', 'mobile', 'tel', 'call', 'téléphone', 'portable', 'whatsapp'];
   const exclusionKeywords = ['id', 'ref', 's/n', 'sku', 'ean', 'vin', 'order', 'commande', 'invoice', 'facture', 'tracking', 'quantité', 'quantity', 'batch', 'lot'];
-  const DEFAULT_COUNTRY_CODE = '+33'; // Default to France, can be changed here
-
-  function isValidPhoneNumber(text, element) {
-    const cleanText = text.trim();
-    const digitsOnly = cleanText.replace(/[^\d]/g, '');
-    if (/^\d{13,}$/.test(cleanText)) return false;
-    if (digitsOnly.length < 5) return false;
-    const contextText = (element.parentElement?.textContent || '').toLowerCase();
-    if (exclusionKeywords.some(kw => contextText.includes(kw))) {
-      if (!phoneKeywords.some(kw => contextText.includes(kw))) {
-        return false;
-      }
-    }
-    return true;
-  }
+  const DEFAULT_COUNTRY_CODE = '+33';
 
   function getGoogleVoiceUrl(number) {
     let sanitizedNumber = number.replace(/[^\d+]/g, '');
@@ -28,183 +20,170 @@
     return `https://voice.google.com/u/0/calls?a=nc,${encodedNumber}`;
   }
 
-  // --- 1. Détournement du bouton "Call" (Panneau latéral & Records) ---
+  function isValidPhoneNumber(text, element) {
+    const cleanText = text.trim();
+    const digitsOnly = cleanText.replace(/[^\d]/g, '');
+    if (/^\d{13,}$/.test(cleanText)) return false;
+    if (digitsOnly.length < 5) return false;
+    const contextText = (element?.parentElement?.textContent || '').toLowerCase();
+    if (exclusionKeywords.some(kw => contextText.includes(kw))) {
+      if (!phoneKeywords.some(kw => contextText.includes(kw))) return false;
+    }
+    return true;
+  }
+
+  // --- 1. Détournement du bouton "Call" (HubSpot) ---
   function handleHubSpotCallButton() {
     const selectors = [
       '[data-test-id="create-engagement-call-button"]',
       '[data-unit-test="create-engagement-call-button"]',
-      'button i18n-string[data-key="communications.communicator.tabs.CALL"]',
+      'button i18n-string[data-key*="CALL"]',
       '.uiList [role="button"]',
       'button span'
     ];
-    const callTextFr = "Appeler";
-    const callTextEn = "Call";
-    const callTextEs = "Llamar";
+    const callTexts = ["Appeler", "Call", "Llamar"];
     const allButtons = document.querySelectorAll(selectors.join(', '));
+    
     allButtons.forEach(btn => {
       const text = btn.textContent.trim();
       const isCallButton = btn.matches('[data-test-id*="call"]') || 
-                           [callTextFr, callTextEn, callTextEs].includes(text) ||
+                           callTexts.includes(text) ||
                            btn.closest('[data-test-id="create-engagement-call-button"]');
+      
       if (isCallButton && !btn.dataset.intercepted) {
         btn.dataset.intercepted = "true";
-        btn.addEventListener('click', function(e) {
+        
+        const performRedirection = function(e) {
           if (!window.location.hostname.includes('hubspot')) return;
-          e.preventDefault(); e.stopPropagation();
+          
+          // On bloque tout immédiatement
+          e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
+          
           try {
             let targetUrl = window.location.href;
-            const panel = btn.closest('.ui-drawer, .floating-panel, [data-test-id*="paged-view"], [data-test-id*="panel"]');
-            let contactLink = null;
+            const panel = btn.closest('.ui-drawer, .floating-panel, [data-test-id*="paged-view"], [role="dialog"], [class*="panel"]');
+            
+            // On cherche l'ID du contact
+            let contactId = null;
             if (panel) {
-              const allLinks = Array.from(panel.querySelectorAll('a[href*="/record/"], a[href*="/contact/"]'));
-              contactLink = allLinks.find(a => {
-                const href = a.href;
-                return !href.includes('/views/') && !href.includes('/all/') && /\/\d{8,}(\?|$)/.test(href);
-              });
-            }
-            if (!contactLink) {
-              const activeRow = document.querySelector('tr[data-test-id*="row"], tr[class*="selected"], tr:hover');
-              if (activeRow) {
-                const rowLinks = Array.from(activeRow.querySelectorAll('a[href*="/record/"], a[href*="/contact/"]'));
-                contactLink = rowLinks.find(a => /\/\d{8,}(\?|$)/.test(a.href));
+              contactId = panel.dataset.recordId || panel.getAttribute('data-id');
+              if (!contactId || contactId === 'undefined') {
+                const link = panel.querySelector('a[href*="/record/0-1/"], a[href*="/contact/"]');
+                const match = link?.href.match(/\/record\/0-1\/(\d+)/) || link?.href.match(/\/contact\/(\d+)/);
+                contactId = match?.[1];
               }
             }
-            if (contactLink) {
-              targetUrl = contactLink.href;
-            } else {
-              const idElement = panel?.querySelector('[data-record-id], [data-id]');
-              if (idElement) {
-                const id = idElement.dataset.recordId || idElement.dataset.id;
-                if (id && id.length >= 8) {
-                  const baseUrl = window.location.href.split('/contacts/')[0];
-                  const portalId = window.location.href.match(/\/contacts\/(\d+)/)?.[1];
-                  if (portalId) {
-                    targetUrl = `${baseUrl}/contacts/${portalId}/record/0-1/${id}`;
-                  }
-                }
-              }
+
+            const portalId = window.location.href.match(/\/contacts\/(\d+)/)?.[1];
+            if (contactId && contactId.length >= 8 && portalId) {
+              const baseUrl = window.location.href.split('/contacts/')[0];
+              targetUrl = `${baseUrl}/contacts/${portalId}/record/0-1/${contactId}`;
             }
+
             const url = new URL(targetUrl);
             url.searchParams.set('interaction', 'logged-call');
-            window.location.href = url.toString();
+            
+            // On force la redirection
+            window.location.assign(url.toString());
           } catch (err) { console.error(err); }
-        }, true);
+          return false;
+        };
+
+        // On intercepte sur mousedown pour être les plus rapides
+        btn.addEventListener('mousedown', performRedirection, true);
+        btn.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); }, true);
       }
     });
   }
 
-  // --- 2. Transformation des liens dans les tableaux (All Contacts) ---
+  // --- 2. Transformation des tableaux HubSpot ---
   function handleHubSpotTableLinks() {
     const cells = document.querySelectorAll('td[data-table-external-id*="phone"], td[data-table-external-id*="mobile"], td[data-field*="phone"], td[data-field*="mobile"]');
     
     cells.forEach(cell => {
-      const text = cell.textContent.trim();
-      if (!phoneOnlyRegex.test(text) || text.length >= 25) return;
+      try {
+        const text = cell.textContent.trim();
+        phoneOnlyRegex.lastIndex = 0;
+        if (!phoneOnlyRegex.test(text) || text.length >= 25) return;
 
-      // Au lieu d'un flag sur la cellule, on vérifie si notre bouton est là
-      let btn = cell.querySelector('.tel-btn-added');
-      const gVoiceUrl = getGoogleVoiceUrl(text);
+        let btn = cell.querySelector('.tel-btn-added');
+        const gVoiceUrl = getGoogleVoiceUrl(text);
 
-      if (!btn) {
-        btn = document.createElement('a');
-        btn.className = 'tel-btn-added';
-        btn.target = "_blank";
-        
-        Object.assign(btn.style, {
-          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-          marginLeft: '8px', padding: '1px 8px',
-          backgroundColor: '#0b8043', color: 'white', borderRadius: '4px',
-          textDecoration: 'none', fontSize: '11px', fontWeight: '600',
-          cursor: 'pointer', transition: 'background-color 0.2s',
-          whiteSpace: 'nowrap', flexShrink: '0'
-        });
-        
-        btn.onmouseenter = () => btn.style.backgroundColor = '#096d39';
-        btn.onmouseleave = () => btn.style.backgroundColor = '#0b8043';
-        
-        btn.addEventListener('click', (e) => {
-          e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
-          window.open(gVoiceUrl, '_blank');
-        }, true);
-
-        cell.appendChild(btn);
-      }
-
-      // On met à jour le texte et le lien (au cas où le numéro a changé)
-      btn.href = gVoiceUrl;
-      btn.textContent = chrome.i18n.getMessage("call_button_text") || '📞 Call';
-
-      // On force le layout FLEX pour garder le bouton à droite
-      cell.style.setProperty('display', 'flex', 'important');
-      cell.style.setProperty('align-items', 'center', 'important');
-      cell.style.setProperty('flex-direction', 'row', 'important');
-      
-      // On s'assure que le numéro (textElement) est en vert
-      const textElement = cell.querySelector('a, span[data-test-id="truncated-object-label"], span') || cell;
-      if (textElement) {
-        textElement.style.setProperty('color', '#0b8043', 'important');
-        textElement.style.setProperty('text-decoration', 'none', 'important');
-        
-        // On détourne aussi le clic sur le texte lui-même
-        if (!textElement.dataset.intercepted) {
-          textElement.dataset.intercepted = "true";
-          textElement.addEventListener('click', (e) => {
+        if (!btn) {
+          btn = document.createElement('a');
+          btn.className = 'tel-btn-added';
+          btn.target = "_blank";
+          Object.assign(btn.style, {
+            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+            marginLeft: '8px', padding: '1px 8px',
+            backgroundColor: '#0b8043', color: 'white', borderRadius: '4px',
+            textDecoration: 'none', fontSize: '11px', fontWeight: '600',
+            cursor: 'pointer', transition: 'background-color 0.2s',
+            whiteSpace: 'nowrap', flexShrink: '0'
+          });
+          btn.onmouseenter = () => btn.style.backgroundColor = '#096d39';
+          btn.onmouseleave = () => btn.style.backgroundColor = '#0b8043';
+          btn.addEventListener('click', (e) => {
             e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
             window.open(gVoiceUrl, '_blank');
           }, true);
+          cell.appendChild(btn);
         }
-      }
+
+        btn.href = gVoiceUrl;
+        btn.textContent = CALL_BUTTON_TEXT;
+
+        cell.style.setProperty('display', 'flex', 'important');
+        cell.style.setProperty('align-items', 'center', 'important');
+        cell.style.setProperty('flex-direction', 'row', 'important');
+        
+        const textElement = cell.querySelector('a, span[data-test-id="truncated-object-label"], span') || cell;
+        if (textElement) {
+          textElement.style.setProperty('color', '#0b8043', 'important');
+          textElement.style.setProperty('text-decoration', 'none', 'important');
+          if (!textElement.dataset.intercepted) {
+            textElement.dataset.intercepted = "true";
+            textElement.addEventListener('click', (e) => {
+              e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
+              window.open(gVoiceUrl, '_blank');
+            }, true);
+          }
+        }
+      } catch (e) {}
     });
   }
 
-  // --- 3. Fonctions utilitaires ---
-  function isForbidden(node) {
-    const forbiddenTags = ['A', 'SCRIPT', 'STYLE', 'TEXTAREA', 'INPUT', 'BUTTON'];
-    let parent = node.parentElement;
-    while (parent) {
-      if (forbiddenTags.includes(parent.tagName)) return true;
-      parent = parent.parentElement;
-    }
-    return false;
-  }
-
-  function hasPhoneContext(el) {
-    const attrString = (el.id + ' ' + (el.name || '') + ' ' + (el.getAttribute('data-selenium-test') || '') + ' ' + (el.getAttribute('aria-label') || '')).toLowerCase();
-    if (phoneKeywords.some(kw => attrString.includes(kw))) return true;
-    if (el.id) {
-      const label = document.querySelector(`label[for="${el.id}"]`);
-      if (label && phoneKeywords.some(kw => label.textContent.toLowerCase().includes(kw))) return true;
-    }
-    let parent = el.parentElement;
-    let depth = 0;
-    while (parent && depth < 3) {
-      if (phoneKeywords.some(kw => parent.textContent.toLowerCase().includes(kw))) return true;
-      parent = parent.parentElement;
-      depth++;
-    }
-    return false;
-  }
-
+  // --- 3. Détection de texte brut (linkify) ---
   function linkify(node) {
+    if (!node.parentElement || node.parentElement.closest('.tel-btn-added, a')) return;
     const text = node.textContent;
     let match;
     let lastIndex = 0;
     const fragments = document.createDocumentFragment();
     let hasMatch = false;
-    telPrefixRegex.lastIndex = 0;
-    while ((match = telPrefixRegex.exec(text)) !== null) {
+    const combinedRegex = /(?:tel:\s*)?((?:\+|0|\()[0-9][0-9\s.\-()]{6,25})/g;
+    
+    while ((match = combinedRegex.exec(text)) !== null) {
+      const number = match[1];
+      if (!isValidPhoneNumber(number, node)) continue;
       hasMatch = true;
       fragments.appendChild(document.createTextNode(text.substring(lastIndex, match.index)));
+      const gVoiceUrl = getGoogleVoiceUrl(number);
       const a = document.createElement('a');
-      const number = match[1];
       a.textContent = match[0]; 
-      a.href = getGoogleVoiceUrl(number);
+      a.href = gVoiceUrl;
       a.target = "_blank";
+      a.style.color = '#0b8043';
       a.style.textDecoration = 'underline';
-      a.style.color = 'inherit';
-      a.classList.add('tel-linkified');
+      const btn = document.createElement('a');
+      btn.className = 'tel-btn-added';
+      btn.textContent = ' 📞';
+      btn.href = gVoiceUrl;
+      btn.target = "_blank";
+      btn.style.textDecoration = 'none';
       fragments.appendChild(a);
-      lastIndex = telPrefixRegex.lastIndex;
+      fragments.appendChild(btn);
+      lastIndex = combinedRegex.lastIndex;
     }
     if (hasMatch) {
       fragments.appendChild(document.createTextNode(text.substring(lastIndex)));
@@ -214,66 +193,45 @@
 
   function handleInputFields(field) {
     if (field.getAttribute('data-selenium-test') === 'property-input-call_dev') return;
-    
-    // On ignore les champs de saisie à l'intérieur des tableaux HubSpot 
-    // car ils sont déjà gérés par handleHubSpotTableLinks
     if (window.location.hostname.includes('hubspot') && field.closest('td')) return;
-
     const val = (field.value || '').trim();
     if (!val) return;
-    let targetNumber = null;
-    telPrefixRegex.lastIndex = 0;
-    let match = telPrefixRegex.exec(val);
-    if (match) targetNumber = match[1];
-    else if (phoneOnlyRegex.test(val) && hasPhoneContext(field)) {
-      if (val.length < 30) targetNumber = val;
-    }
-    if (targetNumber) {
-      if (field.nextElementSibling && field.nextElementSibling.classList.contains('tel-btn-added')) return;
+    phoneOnlyRegex.lastIndex = 0;
+    if (phoneOnlyRegex.test(val)) {
+      if (field.nextElementSibling?.classList.contains('tel-btn-added')) return;
       const btn = document.createElement('a');
-      btn.href = getGoogleVoiceUrl(targetNumber);
+      btn.href = getGoogleVoiceUrl(val);
       btn.target = "_blank";
-      btn.textContent = chrome.i18n.getMessage("call_button_text") || '📞 Call';
+      btn.textContent = CALL_BUTTON_TEXT;
       btn.className = 'tel-btn-added';
       Object.assign(btn.style, {
         display: 'inline-block', marginLeft: '2px', marginTop: '5px',
         padding: '2px 10px', backgroundColor: '#0b8043', color: 'white', 
         borderRadius: '4px', textDecoration: 'none', fontSize: '12px', 
-        fontWeight: '600', verticalAlign: 'middle', cursor: 'pointer', transition: 'background-color 0.2s'
+        fontWeight: '600', verticalAlign: 'middle', cursor: 'pointer'
       });
-      btn.onmouseenter = () => btn.style.backgroundColor = '#096d39';
-      btn.onmouseleave = () => btn.style.backgroundColor = '#0b8043';
-      if (!field.parentNode) return;
-      field.parentNode.insertBefore(btn, field.nextSibling);
+      field.parentNode?.insertBefore(btn, field.nextSibling);
     }
   }
 
   function walk(root) {
-    if (!root) return;
-    
-    // Pour HubSpot, on évite le linkify sauvage sur les tables pour ne pas avoir de doublons
+    if (!root || !isContextValid()) return;
     const isHubSpot = window.location.hostname.includes('hubspot');
-    
     const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
       acceptNode: function(node) {
-        if (isForbidden(node)) return NodeFilter.FILTER_REJECT;
-        // On évite de linkifier le texte brut dans n'importe quel élément à l'intérieur d'une cellule de tableau HubSpot
-        // car handleHubSpotTableLinks gère déjà cela de manière exhaustive
-        if (isHubSpot) {
-          let parent = node.parentElement;
-          while (parent && parent !== root) {
-            if (parent.tagName === 'TD') return NodeFilter.FILTER_REJECT;
-            parent = parent.parentElement;
-          }
+        const forbiddenTags = ['A', 'SCRIPT', 'STYLE', 'TEXTAREA', 'INPUT', 'BUTTON'];
+        let p = node.parentElement;
+        while (p && p !== root) {
+          if (forbiddenTags.includes(p.tagName)) return NodeFilter.FILTER_REJECT;
+          if (isHubSpot && p.tagName === 'TD') return NodeFilter.FILTER_REJECT;
+          p = p.parentElement;
         }
         return NodeFilter.FILTER_ACCEPT;
       }
     });
-    
     const nodes = [];
     while (walker.nextNode()) nodes.push(walker.currentNode);
     for (let i = nodes.length - 1; i >= 0; i--) linkify(nodes[i]);
-    
     const inputs = root.querySelectorAll ? root.querySelectorAll('textarea, input') : [];
     inputs.forEach(handleInputFields);
     handleHubSpotCallButton();
@@ -281,14 +239,13 @@
   }
 
   walk(document.body);
-
   let debounceTimer;
-  const observer = new MutationObserver((mutations) => {
+  const observer = new MutationObserver(() => {
+    if (!isContextValid()) { observer.disconnect(); return; }
     clearTimeout(debounceTimer);
     debounceTimer = setTimeout(() => {
-      walk(document.body);
+      try { walk(document.body); } catch(e) {}
     }, 50);
   });
-
   observer.observe(document.body, { childList: true, subtree: true, attributes: true });
 })();
