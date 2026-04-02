@@ -8,7 +8,8 @@ A professional-grade Google Chrome extension (Manifest V3) designed to streamlin
 
 ### ☕ Support the Project
 If this extension saves you time and makes your HubSpot workflow smoother, feel free to support its development!
-<a href="https://paypal.me/austraz" target="_blank">**Donate via PayPal**</a>
+
+[![Donate via PayPal](https://img.shields.io/badge/Donate-PayPal-blue.svg?style=for-the-badge&logo=paypal)](https://paypal.me/austraz)
 
 ---
 
